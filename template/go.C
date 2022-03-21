@@ -15,8 +15,8 @@ using namespace std;
 #define __analysisMode "f"
 #define _maxEvents 20000000
 #define _inFormat "../data/in/anarun%s.root"
-#define _outAnaName "../data/out/%s_an.root"
-#define _splineFileName "../data/spline/splines_%s.root"
+#define _outAnaName "../data/template/ana/%s_an.root"
+#define _splineFileName "../data/template/spline/splines_%s.root"
 #define _analysisInTreeName "mod0"
 #define _splinesFormat "spline/spline_%d"
 #define _doMakeNewFile "y"

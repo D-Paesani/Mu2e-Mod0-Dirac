@@ -15,8 +15,8 @@ const int cryNo = 51;
 const int sdNo = 2;
 const int chNo = 102;
 
-const double wfEx = 0; //perché ???? 
-const double wfEy = 0.12; 
+const double wfEx = 0; 
+const double wfEy = 0.12; // 1/sqrt(12) included
 
 const double CF = 0.10; 
 const float maxAmp = 1.9;

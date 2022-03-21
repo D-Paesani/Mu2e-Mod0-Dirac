@@ -174,8 +174,6 @@ void ana::Loop() {
 
       for (int ihit = 0; ihit < nHits; ihit++) {
          
-         AN.res.processedWfs++; 
-
          int icry = iCry[ihit], irow = iRow[ihit], icol = iCol[ihit], isd = SiPM[ihit], ich = cry2chan(icry, isd);
 
          IntQ[ich] = Qval[ihit], PkV[ich] = Vmax[ihit], PkT[ich] = Tval[ihit];
@@ -184,6 +182,9 @@ void ana::Loop() {
          double tmin = tWave[ihit][0], tmax = tWave[ihit][nsam-1]; 
          isAlive[ich] = 1;
          TString ctitl = Form("ev%lld_cr%d_sd%d", jentry, icry, isd);
+         // add saturation cut if pkV > 40000
+         AN.res.processedWfs++; 
+
          
          double blTmp{0}, brmsTmp{0};
          const int baseSam= 5;
@@ -275,7 +276,7 @@ void ana::Loop() {
                //aggiungere plot residui
             }
 
-            //if(brmsTmp ==0) { 
+            //if(brmsTmp == 0) { 
             //if ( (teT-psT)*(teT-psT) > 5  ) {
             if ( toss < 1 && 0) {
                AN.outDirs.specimens->cd();
