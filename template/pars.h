@@ -2,18 +2,17 @@
 
 using SplineTypeDef = TSpline3;
 
-const int cryNo = 51;
-const int sdNo = 2;
-const int chNo = 102;
-const int waveSz = 200;
-const int digiTime = 5;
+
 
 
 const struct AnaPars {
 
-const int cryNo = 51;
-const int sdNo = 2;
-const int chNo = 102;
+
+static const int cryNo = 51;
+static const int sdNo = 2;
+static const int chNo = 102;
+static const int waveSz = 200;
+static const int digiTime = 5;
 
 const double wfEx = 0; 
 const double wfEy = 0.12; // 1/sqrt(12) included

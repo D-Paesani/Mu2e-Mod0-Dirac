@@ -41,7 +41,7 @@
 using namespace std;
 using namespace ROOT::Experimental;
 
-Long64_t isAlive[chNo]{0};
+Long64_t isAlive[PRM.chNo]{0};
 
 AnaVars AN;
 HistManager HM;
@@ -170,7 +170,7 @@ void ana::Loop() {
       if (!(jentry%5000)) {cout << Form( "     processing evt %lld / %lld  ( %.0f%% )", jentry, AN.etp, (float)(100*jentry/AN.etp) ) << endl;}
       double toss = gRandom->Uniform(0, AN.etp/50);
 
-      double IntQ[chNo]{0},  PkV[chNo]{0},  PkT[chNo]{0},  TeT[chNo]{0}, PsT[chNo]{0};
+      double IntQ[PRM.chNo]{0},  PkV[PRM.chNo]{0},  PkT[PRM.chNo]{0},  TeT[PRM.chNo]{0}, PsT[PRM.chNo]{0};
 
       for (int ihit = 0; ihit < nHits; ihit++) {
          
@@ -182,7 +182,7 @@ void ana::Loop() {
          double tmin = tWave[ihit][0], tmax = tWave[ihit][nsam-1]; 
          isAlive[ich] = 1;
          TString ctitl = Form("ev%lld_cr%d_sd%d", jentry, icry, isd);
-         // add saturation cut if pkV > 40000
+         // add saturation cut on pkV
          AN.res.processedWfs++; 
 
          
@@ -215,7 +215,7 @@ void ana::Loop() {
          p_psT[ihit] = psT;
 
          HM.Fill1d("chargeRaw", ich, intQ);
-         HM.Fill1d("timePseudoModBin", ich, psT/digiTime - (int)psT/digiTime);
+         HM.Fill1d("timePseudoModBin", ich, psT/PRM.digiTime - (int)psT/PRM.digiTime);
          HM.Fill1d("timesPk", ich, pkT - PRM.tiOff);
          HM.Fill1d("timesPseudo", ich, psT - PRM.tiOff);
          HM.Fill2d("pseudoSlewing", ich, intQ, psT - PRM.tiOff);
@@ -265,7 +265,7 @@ void ana::Loop() {
                p_teTfi[ihit] = tempFun.GetX(thr);
                teT = p_teTcf[ihit]; // check
                HM.Fill1d("timesTe", ich, teT - PRM.tiOff); 
-               HM.Fill1d("timeTeModBin", ich, teT/digiTime - (int)teT/digiTime);
+               HM.Fill1d("timeTeModBin", ich, teT/PRM.digiTime - (int)teT/PRM.digiTime);
                HM.Fill2d("teSlewing", ich, intQ, teT - PRM.tiOff);
                HM.Fill2d("teChi2_t", ich, teT - PRM.tiOff, p_teChi2[ihit]);
                HM.Fill2d("teChi2_q", ich, intQ, p_teChi2[ihit]);
