@@ -14,8 +14,8 @@ int cry2chan(int c, int s) {return 2*c+s;}
 //int chan2col(int r, int c) {return }
         
 void NamerChannel(int hN, TString& hTag, TString& hTitleTag) {
-    hTag = Form("_%d_%d", chan2cry(hN), chan2side(hN)); 
-    hTitleTag = Form(" [%d%s]", chan2cry(hN), chan2side(hN)==0 ? "L": "R");
+  hTag = Form("_%d_%d", chan2cry(hN), chan2side(hN)); 
+  hTitleTag = Form(" [%d%s]", chan2cry(hN), chan2side(hN)==0 ? "L": "R");
 }
 
 void NamerArray(int n, TString& hTag, TString& hTitleTag) { 

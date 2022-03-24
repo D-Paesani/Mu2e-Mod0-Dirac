@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <unistd.h>
 #include <stdio.h>
+#include <sstream>
+#include <iomanip>
 
 #include "TApplication.h"
 #include "TSpectrum.h"
@@ -112,6 +114,17 @@ void times_proc(TH1* histObj, int histN, int& histSkipFlag) {
    cout<<" -------------------------------------------------------->>>>>>>    "<<timeFit.GetParameter(2)<<", "<<timeFit.GetParError(2)<<endl<<endl;
 }
 
+void residuals_proc(TH1* histObj, int histN, int& histSkipFlag) {
+   if (isAlive[histN] == 0) {histSkipFlag=1; return;} 
+   gStyle->SetOptFit(1111);
+   TProfile *prof = ((TH2*)histObj)->ProfileX();
+   prof->SetTitle(histObj->GetTitle());
+   prof->SetName(histObj->GetName());
+   //prof->Scale(1/AN.res.teGoodFits[histN]);
+   prof->Write();
+   histSkipFlag = 1;
+}
+
 void ana::Loop() {
 
    if (fChain == 0) return;
@@ -136,7 +149,8 @@ void ana::Loop() {
       HM.AddHistBox("th1f", PRM.chNo, "timeTeModBin", "Flatness over bin", "Normalised bin", "",  11, 0, 1.1);
       HM.AddHistBox("th1f", PRM.chNo, "teChi2","Chi2", "#chi^{2}/NDOF","", 200, 0, 15);
       HM.AddHistBox("th2f", PRM.chNo, "teChi2_t", "Chi2 vs time", "T", "ns", "#chi^{2}/NDOF", "", PRM.tiBins, PRM.tiFrom, PRM.tiTo, 100, 0, 5); 
-      HM.AddHistBox("th2f", PRM.chNo, "teChi2_q", "Chi2 vs charge", "Q", "pC",  "#chi^{2}/NDOF", "", PRM.qBins, PRM.qFrom, PRM.qTo, 100, 0, 5); 
+      HM.AddHistBox("th2f", PRM.chNo, "teChi2_q", "Chi2 vs charge", "Q", "pC", "#chi^{2}/NDOF", "", PRM.qBins, PRM.qFrom, PRM.qTo, 100, 0, 5); 
+      HM.AddHistBox("th2f", PRM.chNo, "teResiduals", "teResiduals", "T - teT", "ns", "amplitude", "mV", 30, -15*PRM.digiTime, 15*PRM.digiTime, 100, -10000, 10000, &residuals_proc); 
    } else if (AN.mode == "g") {
       HM.AddHistBox("th2f", 1, "fuzzyMaster", "Fuzzy master", "Time", "ns", "Normalised Pulse", "", PRM.teTiBins, PRM.teTiFrom, PRM.teTiTo, PRM.teAmpBins, -0.1, 1.1, &fuzzyTemp_proc);
       HM.AddHistBox("th2f", PRM.chNo, "fuzzy", "Fuzzy template", "Time", "ns", "Normalised Pulse", "", PRM.teTiBins, PRM.teTiFrom, PRM.teTiTo, PRM.teAmpBins, -0.1, 1.1, &fuzzyTemp_proc);
@@ -183,9 +197,8 @@ void ana::Loop() {
          isAlive[ich] = 1;
          TString ctitl = Form("ev%lld_cr%d_sd%d", jentry, icry, isd);
          // add saturation cut on pkV
-         AN.res.processedWfs++; 
+         AN.res.processedWfs[ich]++; 
 
-         
          double blTmp{0}, brmsTmp{0};
          const int baseSam= 5;
          for (int k = 0; k < baseSam; k++) {
@@ -223,10 +236,10 @@ void ana::Loop() {
 
          if ( toss < 1 ) {
             AN.outDirs.specimens->cd();
-            TCanvas cc = TCanvas("pseudo_" + ctitl); cc.cd(); 
+            TCanvas cc("pseudo_" + ctitl); cc.cd(); 
             gStyle->SetOptFit(1111);
             waveGr.SetTitle("pseudo_" + ctitl);
-            waveGr.SetLineWidth(0); waveGr.SetMarkerStyle(20); waveGr.SetMarkerSize(1); waveGr.SetMarkerColor(kBlue); waveGr.Draw(""); 
+            waveGr.SetLineWidth(0); waveGr.SetMarkerStyle(20); waveGr.SetMarkerSize(1); waveGr.SetMarkerColor(kBlue); waveGr.Draw("AP"); 
             waveFitFun.SetLineColor(kTeal); waveFitFun.Draw("same");
             waveSp.SetLineColor(kBlack); waveSp.Draw("same");
             TMarker tp = TMarker(psT, waveSp.Eval(psT), 2); tp.SetMarkerSize(3); tp.SetMarkerColor(kRed); tp.Draw("same"); 
@@ -248,7 +261,8 @@ void ana::Loop() {
          double teT = -9999;
          if (AN.mode == "f") { 
             auto tempSpFun = [&](Double_t *x, Double_t *par){ return par[0]*(AN.splines[ich]->Eval(x[0]-par[1]))+par[2]; };
-            TF1 tempFun("tempFun", tempSpFun, tmin, psT + 20, 3); 
+            double tstart = tmin, tstop = psT + 20;
+            TF1 tempFun("tempFun", tempSpFun, tstart, tstop, 3); 
             tempFun.SetParameter(0, pkV);
             //tempFun.SetParLimits(0, pkV*0.85, pkV*1.15);
             tempFun.SetParameter(1, psT - PRM.teOff); 
@@ -272,23 +286,28 @@ void ana::Loop() {
                HM.Fill1d("teChi2", ich, p_teChi2[ihit]);
                HM.Fill2d("timesTe_timesPs", ich, psT - PRM.tiOff, teT - PRM.tiOff);
                HM.Fill2d("newold", ich, templTime[ihit] - PRM.tiOff, teT - PRM.tiOff);
-               AN.res.teGoodFits++;
-               //aggiungere plot residui
+               AN.res.teGoodFits[ich]++;
+               for (int i = 0; i < nsam; i++) {
+                  double tim = waveGr.GetPointX(i), amp = waveGr.GetPointY(i), ampFit = tempFun.Eval(tim);
+                  if (tim <= tstart) { continue; }
+                  if (tim >= tstop) { break; }
+                  HM.Fill2d("teResiduals", ich, tim - teT, ampFit - amp);
+               }
             }
 
             //if(brmsTmp == 0) { 
             //if ( (teT-psT)*(teT-psT) > 5  ) {
-            if ( toss < 1 && 0) {
+            if ( toss < 1 ) {
                AN.outDirs.specimens->cd();
-               TCanvas cc = TCanvas("fit_" + ctitl); cc.cd(); 
+               TCanvas cc("fit_" + ctitl); cc.cd(); 
                gStyle->SetOptFit(1111);
                waveGr.SetTitle("fit_" + ctitl);
-               waveGr.SetLineWidth(0); waveGr.SetMarkerStyle(20); waveGr.SetMarkerSize(0.4); waveGr.SetMarkerColor(kBlue); waveGr.Draw(); 
+               waveGr.SetLineWidth(0); waveGr.SetMarkerStyle(20); waveGr.SetMarkerSize(0.4); waveGr.SetMarkerColor(kBlue); waveGr.Draw("AP"); 
                tempFun.SetLineColor(kRed); tempFun.Draw("same"); 
                TMarker tp = TMarker(teT, tempFun.Eval(teT), 2);
                tp.SetMarkerSize(3); tp.SetMarkerColor(kRed); tp.Draw("same"); 
-               TLine t1 = TLine(psT, 0, psT, pkV);  t1.SetLineColor(kBlue); t1.Draw("same");
-               TLine t2 = TLine(teT, 0, teT, pkV);  t2.SetLineColor(kPink); t2.Draw("same");
+               TLine t1 = TLine(psT, 0, psT, pkV); t1.SetLineColor(kBlue); t1.Draw("same");
+               TLine t2 = TLine(teT, 0, teT, pkV); t2.SetLineColor(kPink); t2.Draw("same");
                cc.Write(); 
             }
          }
@@ -306,6 +325,19 @@ void ana::Loop() {
 
    cout<<endl<<"Processing histograms..."<<endl;
    HM.ProcessBoxes();
+
+   cout<<endl;
+   for (int i = 0; i < PRM.chNo; i++) {
+      if (isAlive[i] == 0) {continue;}
+      double outeff = (float)(AN.res.teGoodFits[i]/AN.res.processedWfs[i])*100;
+      cout << fixed << showpoint;
+      cout<<"fitEfficiency["<<i<<"] = "<<std::setprecision(2)<<outeff<<" %"<<endl;
+   }
+   
+
+
+
+
 
 }
 
