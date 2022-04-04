@@ -6,6 +6,11 @@
 
 struct AnaVars {
 
+    double CF = PRM.CF_def;
+    double teFitStart = PRM.teFitStart_def;
+    double teFitStop = PRM.teFitStop_def;
+
+
     TString runName, inFileName, outFileName, splineFileName;
     TFile *inFile, *outFile, *splineFile;
     TString mode;
@@ -14,7 +19,7 @@ struct AnaVars {
 
 
     struct OutDirs {
-        TDirectory *spline, *splineGraph, *specimens, *templDraw, *templResampDraw, *profile, *efficiency;
+        TDirectory *spline, *splineGraph, *specimens, *templDraw, *templResampDraw, *profile, *efficiency, *preliminary;
     } outDirs;
 
 

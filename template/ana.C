@@ -39,14 +39,18 @@
 #include "vars.h"
 #include "NumberingHelper.h"
 #include "HistManager.h"
+#include "branch2histo.h"
 
 using namespace std;
 using namespace ROOT::Experimental;
 
-Long64_t isAlive[PRM.chNo]{0};
+Long64_t isAlive[PRM.chNo]{0}; 
+double landauPks[PRM.cryNo][PRM.sdNo]{0}; 
 
 AnaVars AN;
 HistManager HM;
+
+#define FITENABLE 1
 
 void skipNotAlive(TH1* histObj, int histN, int& histSkipFlag) { if (isAlive[histN] == 0) {histSkipFlag=1;} };
 
@@ -110,6 +114,19 @@ void times_proc(TH1* histObj, int histN, int& histSkipFlag) {
    TF1 timeFit = TF1("g", "gaus", tmin, tmax); timeFit.SetParameter(1, tpeak); timeFit.SetParameter(2, 5);
    histObj->Fit(&timeFit, "REMQ");
    histObj->Fit(&timeFit, "REMQ");
+   // cout<<Form("----------->> Processed %s" , histObj->GetName());//<<endl;
+   // cout<<" -------------------------------------------------------->>>>>>>    "<<timeFit.GetParameter(2)<<", "<<timeFit.GetParError(2)<<endl<<endl;
+}
+
+void times_proc_cry(TH1* histObj, int histN, int& histSkipFlag) {
+
+   if (histObj->GetEntries() < 5) {histSkipFlag=1; return;} 
+   gStyle->SetOptFit(1111);
+   double tpeak = histObj->GetBinCenter(histObj->GetMaximumBin());
+   double tmax = tpeak + 5, tmin = tpeak - 5;
+   TF1 timeFit = TF1("g", "gaus", tmin, tmax); timeFit.SetParameter(1, tpeak); timeFit.SetParameter(2, 5);
+   histObj->Fit(&timeFit, "REMQ");
+   histObj->Fit(&timeFit, "REMQ");
    cout<<Form("----------->> Processed %s" , histObj->GetName());//<<endl;
    cout<<" -------------------------------------------------------->>>>>>>    "<<timeFit.GetParameter(2)<<", "<<timeFit.GetParError(2)<<endl<<endl;
 }
@@ -120,7 +137,6 @@ void residuals_proc(TH1* histObj, int histN, int& histSkipFlag) {
    TProfile *prof = ((TH2*)histObj)->ProfileX();
    prof->SetTitle(histObj->GetTitle());
    prof->SetName(histObj->GetName());
-   //prof->Scale(1/AN.res.teGoodFits[histN]);
    prof->Write();
    histSkipFlag = 1;
 }
@@ -133,13 +149,16 @@ void ana::Loop() {
    cout<<"Creating HistBoxes:"<<endl;  
    HM.SetNamerFun(&NamerChannel); 
    HM.SetProcessFun(&skipNotAlive); 
+   double eneBins = 800, eneFrom = 0, eneTo = 160;
+   HM.AddHistBox("th1f", PRM.chNo, "eneRaw", "e", "E", "MeV", eneBins, eneFrom, eneTo);
+   HM.AddHistBox("th1f", PRM.chNo, "chargePreliminary", "Q", "Q", "pC", PRM.qBins, PRM.qFrom, PRM.qTo);
    HM.AddHistBox("th1f", PRM.chNo, "chargeRaw", "Q", "Q", "pC", PRM.qBins, PRM.qFrom, PRM.qTo);
    HM.AddHistBox("th1f", PRM.chNo, "bLineRms", "Base line rms", "", "mV", 100, 0.0, 5);
    HM.AddHistBox("th1f", PRM.chNo, "bLine", "Base line", "", "mV", 100, 5, 5); 
    HM.AddHistBox("th1f", PRM.chNo, "timesPseudo", "Template timesPseudo", "Time", "ns",  PRM.tiBins, PRM.tiFrom, PRM.tiTo, &times_proc);  
    HM.AddHistBox("th1f", PRM.chNo, "timesPk", "Peak times", "Time", "ns",  PRM.tiBins, PRM.tiFrom, PRM.tiTo, &times_proc); 
-   HM.AddHistBox("th2f", PRM.chNo, "pseudoSlewing", "Pseudo time slewing", "Q", "pC", "T", "ns", PRM.qBins, PRM.qFrom, PRM.qTo, PRM.tiBins, PRM.tiFrom, PRM.tiTo);
-   HM.AddHistBox("th2f", PRM.chNo, "teSlewing", "Template time slewing", "Q", "pC", "T", "ns", PRM.qBins, PRM.qFrom, PRM.qTo, PRM.tiBins, PRM.tiFrom, PRM.tiTo); 
+   HM.AddHistBox("th2f", PRM.chNo, "pseudoSlewing", "Pseudo time slewing", "E", "MeV", "T", "ns", eneBins, eneFrom, eneTo, PRM.tiBins, PRM.tiFrom, PRM.tiTo);
+   HM.AddHistBox("th2f", PRM.chNo, "teSlewing", "Template time slewing", "E", "MeV", "T", "ns", eneBins, eneFrom, eneTo, PRM.tiBins, PRM.tiFrom, PRM.tiTo); 
    HM.AddHistBox("th1f", PRM.chNo, "timePseudoModBin", "Flatness over bin", "Normalised bin", "",  11, 0, 1.1);
    HM.AddHistBox("th1f", PRM.chNo, "old", "old", "Time", "ns",  PRM.tiBins, PRM.tiFrom, PRM.tiTo, &times_proc); 
    if (AN.mode == "f") {
@@ -149,14 +168,43 @@ void ana::Loop() {
       HM.AddHistBox("th1f", PRM.chNo, "timeTeModBin", "Flatness over bin", "Normalised bin", "",  11, 0, 1.1);
       HM.AddHistBox("th1f", PRM.chNo, "teChi2","Chi2", "#chi^{2}/NDOF","", 200, 0, 15);
       HM.AddHistBox("th2f", PRM.chNo, "teChi2_t", "Chi2 vs time", "T", "ns", "#chi^{2}/NDOF", "", PRM.tiBins, PRM.tiFrom, PRM.tiTo, 100, 0, 5); 
-      HM.AddHistBox("th2f", PRM.chNo, "teChi2_q", "Chi2 vs charge", "Q", "pC", "#chi^{2}/NDOF", "", PRM.qBins, PRM.qFrom, PRM.qTo, 100, 0, 5); 
-      HM.AddHistBox("th2f", PRM.chNo, "teResiduals", "teResiduals", "T - teT", "ns", "amplitude", "mV", 30, -15*PRM.digiTime, 15*PRM.digiTime, 100, -10000, 10000, &residuals_proc); 
+      HM.AddHistBox("th2f", PRM.chNo, "teChi2_q", "Chi2 vs charge", "E", "MeV", "#chi^{2}/NDOF", "", eneBins, eneFrom, eneTo, 100, 0, 5); 
+      HM.AddHistBox("th2f", PRM.chNo, "teResidualsProf", "resid", "T - teT", "ns", "amplitude", "mV", 30, -15*PRM.digiTime, 15*PRM.digiTime, 100, -100, 100, &residuals_proc); 
+      HM.AddHistBox("th1f", PRM.chNo, "teResiduals", "resid", "amp", "mV", 400, -20, 20); 
+      HM.AddHistBox("th2f", PRM.chNo, "teResiduals_charge", "resid", "E", "MeV", "res", "", eneBins, eneFrom, eneTo, 400, -20, 20); 
+      HM.AddHistBox("th2f", PRM.chNo, "teResiduals_time", "resid", "T", "ns", "res", "", PRM.tiBins, PRM.tiFrom, PRM.tiTo, 400, -20, 20); 
+      HM.AddHistBox("th1f", PRM.cryNo, "teDualReadout", "teT", "T", "ns", 800, -10, 10, &times_proc_cry, &NamerArray);
+      HM.AddHistBox("th1f", PRM.cryNo, "psDualReadout", "teT", "T", "ns", 800, -10, 10, &times_proc_cry, &NamerArray);
+      HM.AddHistBox("th1f", PRM.cryNo, "chargDualReadout", "psT", "E", "MeV", eneBins, eneFrom, eneTo, HM.GetProcDef(), &NamerArray);
+      HM.AddHistBox("th2f", PRM.chNo, "p0:charge", "p0_smearing", "E", "MeV", "p0", "mV", eneBins, eneFrom, eneTo, 1000, 0, 2000);
    } else if (AN.mode == "g") {
       HM.AddHistBox("th2f", 1, "fuzzyMaster", "Fuzzy master", "Time", "ns", "Normalised Pulse", "", PRM.teTiBins, PRM.teTiFrom, PRM.teTiTo, PRM.teAmpBins, -0.1, 1.1, &fuzzyTemp_proc);
       HM.AddHistBox("th2f", PRM.chNo, "fuzzy", "Fuzzy template", "Time", "ns", "Normalised Pulse", "", PRM.teTiBins, PRM.teTiFrom, PRM.teTiTo, PRM.teAmpBins, -0.1, 1.1, &fuzzyTemp_proc);
    }
    cout<<endl<<endl;
 
+   for (int i = 0; i < PRM.cryNo; i++) {  
+      for (int ii = 0; ii < PRM.sdNo; ii++) {
+         int cha = cry2chan(i, ii);
+         TH1 *hist = (TH1*)HM.GetHist("chargePreliminary", cha);
+         branch2histo1d(hist, AN.chain, "Qval", Form("iCry == %d && SiPM == %d", i, ii)); 
+         if (hist->GetEntries() < 10) { continue; }
+         double peak = hist->GetBinCenter(hist->GetMaximumBin());
+         double qfrom = 2000, qto = 12000;
+         double sigma = 500;
+         TF1 land = TF1("land", "landau", 3000, 10000);
+         land.SetParameters(hist->Integral()/2, peak, sigma);
+         hist->Fit(&land, "REMQ");
+         land.SetParameters(land.GetParameter(0), peak, sigma);
+         land.SetRange(peak - 1.5*sigma, peak + 4.5*sigma);
+         hist->Fit(&land, "REMQ"); 
+         hist->Fit(&land, "REMQ"); 
+         peak = land.GetParameter(1); 
+         sigma = land.GetParameter(2);
+         landauPks[i][ii] = peak;
+      }
+   }
+      
    TTree *_newTree;
    TFile *_newFile;
    const int _nhits = 20;  
@@ -175,6 +223,10 @@ void ana::Loop() {
       _newTree->Branch("p_psT", &p_psT,"p_psT[nHits]/D");
    }
 
+   double psDualReadoutDiff[2][PRM.cryNo]{0};
+   double teDualReadoutDiff[2][PRM.cryNo]{0};
+   double chargDualReadout[2][PRM.cryNo]{0};
+
    Long64_t nbytes = 0, nb = 0; 
    for (Long64_t jentry=0; jentry<AN.etp; jentry++) { 
       Long64_t ientry = LoadTree(jentry); 
@@ -192,6 +244,7 @@ void ana::Loop() {
 
          IntQ[ich] = Qval[ihit], PkV[ich] = Vmax[ihit], PkT[ich] = Tval[ihit];
          double intQ = Qval[ihit], pkV = Vmax[ihit], pkT = Tval[ihit]; 
+         double ene = 21.00 * intQ / landauPks[icry][isd];
          int nsam = nSamples[ihit];
          double tmin = tWave[ihit][0], tmax = tWave[ihit][nsam-1]; 
          isAlive[ich] = 1;
@@ -209,8 +262,6 @@ void ana::Loop() {
          blTmp = blTmp/baseSam;
          brmsTmp = TMath::Sqrt(TMath::Abs(brmsTmp/baseSam - blTmp*blTmp));
          double ey = TMath::Sqrt(PRM.wfEy*PRM.wfEy + brmsTmp*brmsTmp);
-         HM.Fill1d("bLineRms", ich, brmsTmp);
-         HM.Fill1d("bLine", ich, blTmp);  
 
          TGraphErrors waveGr = TGraphErrors(nsam); 
          for (int k = 0; k < nsam; k++) {  
@@ -223,15 +274,26 @@ void ana::Loop() {
          TF1 waveFitFun = TF1("fitf", waveSpFun, tmin, tmax, 0); 
          pkV = waveFitFun.GetMaximum(tmin, tmax);
          pkT = waveFitFun.GetMaximumX(tmin, tmax);
-         double thr = pkV*PRM.CF;
+
+         // TF1 peakFit = TF1("prakFit", "gaus", pkT - 16, pkT + 16);
+         // peakFit.SetParameter(1, pkT);
+         // peakFit.SetParameter(2, 5);
+         // waveGr.Fit(&peakFit, "REMQ");
+         // double pkFit = peakFit.GetMaximum();
+         // pkV = pkFit;
+
+         double thr = pkV*AN.CF;
          double psT = waveFitFun.GetX(thr); 
          p_psT[ihit] = psT;
 
+         HM.Fill1d("bLineRms", ich, brmsTmp);
+         HM.Fill1d("bLine", ich, blTmp);  
          HM.Fill1d("chargeRaw", ich, intQ);
+         HM.Fill1d("eneRaw", ich, ene);
          HM.Fill1d("timePseudoModBin", ich, psT/PRM.digiTime - (int)psT/PRM.digiTime);
          HM.Fill1d("timesPk", ich, pkT - PRM.tiOff);
          HM.Fill1d("timesPseudo", ich, psT - PRM.tiOff);
-         HM.Fill2d("pseudoSlewing", ich, intQ, psT - PRM.tiOff);
+         HM.Fill2d("pseudoSlewing", ich, ene, psT - PRM.tiOff);
          HM.Fill1d("old", ich, templTime[ihit] - PRM.tiOff);
 
          if ( toss < 1 ) {
@@ -249,7 +311,7 @@ void ana::Loop() {
             cc.Write();
          }
 
-         if ( AN.mode == "g" && intQ > PRM.teQFrom && intQ < PRM.teQTo ) { 
+         if ( AN.mode == "g" && ene < 40 && ene > 10 ) { 
             for (int k = 0; k < nsam; k++) {  
                double wtime =  tWave[ihit][k] - psT + PRM.teOff;
                double wampl = wave[ihit][k]/pkV; 
@@ -259,9 +321,9 @@ void ana::Loop() {
          }
 
          double teT = -9999;
-         if (AN.mode == "f") { 
+         if (AN.mode == "f" && FITENABLE) { 
             auto tempSpFun = [&](Double_t *x, Double_t *par){ return par[0]*(AN.splines[ich]->Eval(x[0]-par[1]))+par[2]; };
-            double tstart = tmin, tstop = psT + 20;
+            double tstart = tmin, tstop = psT + AN.teFitStop;
             TF1 tempFun("tempFun", tempSpFun, tstart, tstop, 3); 
             tempFun.SetParameter(0, pkV);
             //tempFun.SetParLimits(0, pkV*0.85, pkV*1.15);
@@ -280,18 +342,23 @@ void ana::Loop() {
                teT = p_teTcf[ihit]; // check
                HM.Fill1d("timesTe", ich, teT - PRM.tiOff); 
                HM.Fill1d("timeTeModBin", ich, teT/PRM.digiTime - (int)teT/PRM.digiTime);
-               HM.Fill2d("teSlewing", ich, intQ, teT - PRM.tiOff);
+               HM.Fill2d("teSlewing", ich, ene, teT - PRM.tiOff);
                HM.Fill2d("teChi2_t", ich, teT - PRM.tiOff, p_teChi2[ihit]);
-               HM.Fill2d("teChi2_q", ich, intQ, p_teChi2[ihit]);
+               HM.Fill2d("teChi2_q", ich, ene, p_teChi2[ihit]);
                HM.Fill1d("teChi2", ich, p_teChi2[ihit]);
                HM.Fill2d("timesTe_timesPs", ich, psT - PRM.tiOff, teT - PRM.tiOff);
                HM.Fill2d("newold", ich, templTime[ihit] - PRM.tiOff, teT - PRM.tiOff);
                AN.res.teGoodFits[ich]++;
                for (int i = 0; i < nsam; i++) {
-                  double tim = waveGr.GetPointX(i), amp = waveGr.GetPointY(i), ampFit = tempFun.Eval(tim);
+                  double tim = waveGr.GetPointX(i), amp = waveGr.GetPointY(i), err = waveGr.GetErrorY(i), ampFit = tempFun.Eval(tim);
                   if (tim <= tstart) { continue; }
                   if (tim >= tstop) { break; }
-                  HM.Fill2d("teResiduals", ich, tim - teT, ampFit - amp);
+                  double res = (ampFit - amp)/err;
+                  HM.Fill2d("teResidualsProf", ich, tim - teT, res);
+                  HM.Fill1d("teResiduals", ich, res);
+                  HM.Fill2d("teResiduals_time", ich, teT - PRM.tiOff, res);
+                  HM.Fill2d("teResiduals_charge", ich, ene, res);
+                  HM.Fill2d("p0:charge", ich, ene, tempFun.GetParameter(0));
                }
             }
 
@@ -311,9 +378,42 @@ void ana::Loop() {
                cc.Write(); 
             }
          }
+
+         chargDualReadout[isd][icry] = ene;
+         psDualReadoutDiff[isd][icry] = psT;
+         teDualReadoutDiff[isd][icry] = teT;
+
       }   
 
       if (AN.mode == "f" && AN.doMakeNewFile == "y") {_newTree->Fill();}
+
+      for (int i = 0; i < PRM.cryNo; i++) {
+
+         if (AN.mode == "g") {break;}
+
+         double psL = psDualReadoutDiff[0][i];
+         double psR = psDualReadoutDiff[1][i];
+         double teL = teDualReadoutDiff[0][i];
+         double teR = teDualReadoutDiff[1][i];
+         double chL = chargDualReadout[0][i];
+         double chR = chargDualReadout[1][i];
+
+         if ( chL > 40 ) {continue;}
+         if ( chR > 40 ) {continue;}
+         if ( chL < 10 ) {continue;}
+         if ( chR < 10 ) {continue;}
+
+         HM.Fill1d("chargDualReadout", i, chL*0.5 + 0.5*chR);
+         
+         if ( psL == 0 || psR == 0) {continue;}
+
+         HM.Fill1d("psDualReadout", i, psR - psL);
+
+         if ( teL < -1000 || teR < -1000 ) {continue;}
+ 
+         HM.Fill1d("teDualReadout", i, teR - teL);
+
+      }
       
    } 
 

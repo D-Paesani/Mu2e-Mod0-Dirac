@@ -10,11 +10,11 @@
 
 using namespace std;
 
-#define __runName "33_all" 
-#define _splinesName "33_all"
+#define __runName "33all" 
+#define _splinesName "33all"
 #define __analysisMode "f"
 #define _maxEvents 200000000000
-#define _inFormat "../data/in/anarun%s.root"
+#define _inFormat "../data/roottople/anarun%s.root"
 #define _outAnaName "../data/template/ana/%s_an.root"
 #define _splineFileName "../data/template/spline/splines_%s.root"
 #define _analysisInTreeName "mod0"
@@ -66,6 +66,7 @@ void go(TString arg1 = "", TString arg2 = "") {
         AN.outDirs.splineGraph = AN.outFile->mkdir("splineGraph");
         AN.outDirs.templDraw = AN.outFile->mkdir("templDraw");
         AN.outDirs.profile = AN.outFile->mkdir("profile");
+        AN.outDirs.preliminary = AN.outFile->mkdir("preliminary");
     }
 
     gRandom->SetSeed();

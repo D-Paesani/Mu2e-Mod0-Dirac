@@ -17,14 +17,14 @@ static const int digiTime = 5;
 const double wfEx = 0; 
 const double wfEy = 0.12; // 1/sqrt(12) included
 
-const double CF = 0.10; 
+const double CF_def = 0.08; 
 const float maxAmp = 1.9;
 
 const int teTiBins = 1400; 
 const double teTiFrom = -30, teTiTo = 250;
 const int teAmpBins = 1500; // -0.1 to 1.1
 
-const double teQFrom = 0, teQTo = 100000000000; //mettere qui tagli se servono
+const double teQFrom = 2500, teQTo = 12000; 
 const double teOff = 20;
 
 const double tiOff = 260;
@@ -35,19 +35,11 @@ const double qTo = 20000;
 const int tiBins = 2500;
 const double tiFrom = -400, tiTo = 400;
 
-const double teFitStart = 32;
-const double teFitStop = 20;
+const double teFitStart_def = 32;
+const double teFitStop_def = 20;
 
 
-// //delete after this
 
-// const float tminPseudo = 10; //tutto ciò sarà da mettere in fzne di tpeak
-// const float tmaxPseudo = 30;
-// const float tbaseFrom = 0;
-// const float tbaseTo = 12;
-
-// const int doCorrectTrigger = 0;
-// const int doLogn = 0; 
 
 } PRM;
 
