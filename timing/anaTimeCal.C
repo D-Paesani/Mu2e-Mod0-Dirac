@@ -32,8 +32,6 @@ void ANA_CLASS_NAME::ProcessTimes(TH1* histObj, int histN, int& histSkipFlag, vo
    AnaVars *vars = (AnaVars*) aVars;
    TString name = histObj->GetName(); 
    
-   if (hOpt.Contains("write->skip")) { histSkipFlag = 1; return; }
-   if (hOpt.Contains("fit->skip")) { return; }
    int row{0}, col{0}, cry{0}, sid{0}, used{0};
    ParseHistVars(histN, hOpt, aVars, cry, sid, row, col, used);
    if (used == 0) {histSkipFlag = 1; return;}
@@ -58,7 +56,7 @@ void ANA_CLASS_NAME::ProcessTimes(TH1* histObj, int histN, int& histSkipFlag, vo
    };
 
    if ( vars->conf->step > 0 && name.Contains("resid") ) { 
-      double nplot = (double)(1 + cry + 0.25 * (2*sid-1));
+      double nplot = (double)(1 + cry + 0.25 * (2*sid-1)) + 0.025*vars->conf->step;
       vars->cal->timeResidOut[cry][sid] = peak;  
       vars->cal->timeResidErrOut[cry][sid] = peakErr; 
       vars->cal->timeResidRmsOut[cry][sid] = sigma;
@@ -89,10 +87,16 @@ void ANA_CLASS_NAME::NamerDefault(int histN, TString& hTag, TString& hTitleTag, 
 
    int row{0}, col{0}, cry{0}, sid{0}, used{0};
    if (ParseHistVars(histN, hOpt, aVars, cry, sid, row, col, used)) {
-
-      if (hOpt.Contains("tag->rcs")) { hTag = Form("_%d%s_r%d_c%d_s%d", cry, sid==0?"L":"R", row, col, sid); hTitleTag = Form(" [%d|%d|%s]", row, col, sid==0?"L":"R"); return; }
-      if (hOpt.Contains("tag->rc")) { hTag = Form("_%d%s_r%d_c%d", cry, sid==0?"L":"R", row, col); hTitleTag = Form(" [%d|%d]", row, col); return; }
-
+      if (hOpt.Contains("tag->rcs")) { 
+         hTag = Form("_%d%s_r%d_c%d_s%d", cry, sid==0?"L":"R", row, col, sid); 
+         hTitleTag = Form(" [%d%s][%d|%d|%s]", cry, sid==0?"L":"R", row, col, sid==0?"L":"R"); 
+         return; 
+      }
+      if (hOpt.Contains("tag->rc")) { 
+         hTag = Form("_%d_r%d_c%d", cry, row, col); 
+         hTitleTag = Form(" [%d][%d|%d]", cry, row, col); 
+      return; 
+      }
    }
 
    hTag = Form("_%d", histN); hTitleTag = Form(" [%d]", histN);
@@ -109,6 +113,8 @@ void ANA_CLASS_NAME::Begin() {
       HM.SetUserDefProcess(&(ANA_CLASS_NAME::SkipUnused)); 
       int qBins = 100, tBins = 500;
       double qFrom = 0, qTo = 100, tFrom = 0, tTo = 500;
+      HM.AddHistBox("th1f", 3, "timDiffCellTof", "timeDiffCellTof", "T", "ns", 400, -10, 10, "num->arr tag->arr", &ANA_CLASS_NAME::ProcessTimes);
+      HM.AddHistBox("th1f", 3, "timDiffCell", "timeDiffCell", "T", "ns", 400, -10, 10, "num->arr tag->arr", &ANA_CLASS_NAME::ProcessTimes);
       HM.AddHistBox("th1f", GEO.chNo, "eneEqPreliminary", "eq", "E", "MeV", 800, 0, 20000, "num->chan tag->rcs");
       HM.AddHistBox("th1f", GEO.chNo, "timSelVert", "t0 vert", "T", "ns", tBins, tFrom, tTo, "num->chan tag->rcs", &ANA_CLASS_NAME::ProcessTimes); //RES.usedChanNo;
       HM.AddHistBox("th1f", GEO.chNo, "timSelDiag", "t0 diag", "T", "ns", tBins, tFrom, tTo, "num->chan tag->rcs", &ANA_CLASS_NAME::ProcessTimes);
@@ -120,16 +126,16 @@ void ANA_CLASS_NAME::Begin() {
       HM.AddHistBox("th1f", GEO.cryNo, "timeDiffSel", "timeDiffs", "", "", 400, -10, 10, "num->cry tag->rc", &ANA_CLASS_NAME::ProcessTimes);
       HM.AddHistBox("th2f", GEO.chNo, "timSelAll:ene", "time vs charge", "E", "MeV", "T", "ns", qBins, qFrom, qTo, tBins, tFrom, tTo, "num->chan tag->rcs");
       if (CONF->step > 0) { 
-         HM.AddHistBox("th1f", GEO.cryNo, "timeDiffCut", "timeDiffs", "", "", 400, -10, 10, "num->cry tag->rc", &ANA_CLASS_NAME::ProcessTimes);
+         HM.AddHistBox("th1f", GEO.cryNo, "timeDiffCut", "timeDiffs", "T", "ns", 400, -10, 10, "num->cry tag->rc", &ANA_CLASS_NAME::ProcessTimes);
          HM.AddHistBox("th1f", GEO.chNo, "resid", "residuals", "T", "ns", 250, -10, 10, "num->chan tag->rcs", &ANA_CLASS_NAME::ProcessTimes);
          HM.AddHistBox("th2f", GEO.chNo, "resid:ene", "residuals", "E", "MeV", "T", "ns", qBins, qFrom, qTo, 250, -10, 10, "num->chan tag->rcs");
          HM.AddHistBox("th1f", GEO.cryNo, "eneCry", "eneCry", "E", "MeV", 200, 0, 100, "num->cry tag->rc");
-         HM.AddHistBox("th1f", 1, "cosTheta", "cosTheta", "", "", 400, 0.6, 1, "num->arr tag->off");
-         HM.AddHistBox("th1f", 1, "cosThetaFit", "cosThetaFit", "", "", 400, 0.6, 1, "num->arr tag->off");
-         HM.AddHistBox("th1f", 1, "cosThetaDiff", "cosThetaDiff", "", "", 200, -0.1, 0.1, "num->arr tag->off");
+         HM.AddHistBox("th1f", 1, "cosTheta", "cosTheta", "cosine", "", 400, 0.6, 1, "num->arr tag->off");
+         HM.AddHistBox("th1f", 1, "cosThetaFit", "cosThetaFit", "cosine", "", 400, 0.6, 1, "num->arr tag->off");
+         HM.AddHistBox("th1f", 1, "cosThetaDiff", "cosThetaDiff", "cosineLS-cosineFit", "", 200, -0.1, 0.1, "num->arr tag->off");
          HM.AddHistBox("th1f", 1, "eneCellCut", "eneCell", "E", "MeV", 200, 0, 100, "num->arr tag->off");
          HM.AddHistBox("th1f", 1, "eneAvgCut", "EneMean", "E", "MeV", 200, 0, 100, "num->arr tag->off");
-         HM.AddHistBox("th1f", 1, "fitchi2", "trajFitchi2", "", "", 250, 0, 50, "num->arr tag->off");
+         HM.AddHistBox("th1f", 1, "fitchi2", "trajFitchi2", "chi2", "", 250, 0, 50, "num->arr tag->off");
          HM.AddHistBox("th2f", 1, "resid:eneCell", "residuals", "E", "MeV", "T", "ns", qBins, qFrom, qTo, 250, -10, 10, "num->arr tag->off");
          HM.AddHistBox("th2f", 1, "resid:nCell", "residuals", "nCell", "", "T", "ns", 40, 0, 40, 250, -10, 10, "num->arr tag->off");
          HM.AddHistBox("th2f", 1, "resid:col", "residuals", "col", "", "T", "ns", GEO.colNo, 0, GEO.colNo, 250, -10, 10, "num->arr tag->off");
@@ -362,7 +368,7 @@ void ANA_CLASS_NAME::LoopEntries(Long64_t entry) {
       HM.Fill1d("eneCry", MIP.sel.cry[i], MIP.sel.E[i]);
    }
 
-   double toff = MIP.SelectionGetT0Event();
+   double toff = MIP.SelectionGetTimeWeightEvent();
    double costheta = MIP.sel.cosTheta;
 
    HM.Fill1d("eneAvgCut", 0, MIP.sel.etot / selNo);
@@ -388,10 +394,47 @@ void ANA_CLASS_NAME::LoopEntries(Long64_t entry) {
          HM.Fill2d("resid:col", 0, col, resid);      
          HM.Fill2d("resid:nCell", 0, selNo, resid);      
       }
+
    }
 
 
 
+   //prova
+      double t9{-9999}, t25{-9999}, t41{-9999};
+      for (int hit = 0; hit < hitNo; hit++) { 
+         
+         t9 = eve.cry[hit] == 9 ? eve.timCorrMean[hit] : t9;
+         t25 = eve.cry[hit] == 25 ? eve.timCorrMean[hit] : t25;
+         t41 = eve.cry[hit] == 41 ? eve.timCorrMean[hit] : t41;
+
+         if ( t9 > -1000 && t25 > - 1000 && t41 > -1000 ) {
+
+            HM.Fill1d("timDiffCell", 0, t25-t9);
+            HM.Fill1d("timDiffCell", 1, t41-t9);
+            HM.Fill1d("timDiffCell", 2, t41-t25);
+
+            double t25c = t25 + GEO.cryY[GEO.rowCry[25]][GEO.colCry[25]] / ( PRM.lightSpeed * costheta ) - toff;
+            double t41c = t41 + GEO.cryY[GEO.rowCry[41]][GEO.colCry[41]] / ( PRM.lightSpeed * costheta ) - toff;
+            double t9c = t9 + GEO.cryY[GEO.rowCry[9]][GEO.colCry[9]] / ( PRM.lightSpeed * costheta ) - toff;
+
+            HM.Fill1d("timDiffCellTof", 0, t25c-t9c);
+            HM.Fill1d("timDiffCellTof", 1, t41c-t9c);
+            HM.Fill1d("timDiffCellTof", 2, t41c-t25c);
+         }
+      } 
+   //prova
+
+   
+
+
+
+
+
+
+
+
+
+   
 
 
 
