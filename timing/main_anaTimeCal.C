@@ -12,7 +12,7 @@ using namespace std;
 
 #define _runName "33all" 
 #define _anaMode ""
-#define _anaOptions "sel->vert equal->fromFile" 
+#define _anaOptions "sel->vert equal->fromFile useSlopeZ->off" 
 #define _maxEvents 20000000
 #define _inFileFormat "../data/roottople/anarun%s_new.root"
 #define _inList "../data/runXX.list"

@@ -141,6 +141,11 @@ void ANA_CLASS_NAME::Begin() {
          HM.AddHistBox("th2f", 1, "resid:col", "residuals", "col", "", "T", "ns", GEO.colNo, 0, GEO.colNo, 250, -10, 10, "num->arr tag->off");
          HM.AddHistBox("th2f", 1, "resid:row", "residuals", "row", "", "T", "ns", GEO.rowNo, 0, GEO.colNo, 250, -10, 10, "num->arr tag->off");
       }
+      if (CONF->options.Contains("useSlopeZ->on")) { 
+         HM.AddHistBox("th1f", 1, "cosThetaYZ", "cosThetaYZ", "", "", 400, 0.6, 1, "num->arr tag->off");
+         HM.AddHistBox("th1f", 1, "cosThetaYZsign", "distribution", "", "sign(tanThetaYZ)*(cosThetaYZ - 1)", 400, -1, 1, "num->arr tag->off");
+         HM.AddHistBox("th1f", 1, "zetaChi2", "trajFitchi2", "", "", 200, 0, 100, "num->arr tag->off");
+      }
       cout<<endl<<endl;
    //Histograms
 
@@ -275,14 +280,14 @@ void ANA_CLASS_NAME::Terminate() {
 
 void ANA_CLASS_NAME::LoopEntries(Long64_t entry) { 
 
-   MIP.FilterDiagVertInit();
+   MIP.FilterDiagVertInit(); // Event initialisation
    MIP.SelectionInit();
 
    double hitMax = nHits;
    if (hitMax == 0) {return;} 
    Event eve(hitMax);
 
-   for (int ihit = 0; ihit < hitMax; ihit++) { // parse event
+   for (int ihit = 0; ihit < hitMax; ihit++) { // Event parser
 
       int cry = iCry[ihit], row = iRow[ihit], col = iCol[ihit], sid = SiPM[ihit];
       int read = RES.readoutType[cry];
@@ -300,7 +305,7 @@ void ANA_CLASS_NAME::LoopEntries(Long64_t entry) {
 
    int hitNo = eve.cryNo;
 
-   for (int hit = 0; hit < hitNo; hit++) { // prepare cuts
+   for (int hit = 0; hit < hitNo; hit++) { // Fill selectors
 
       MIP.FilterDiagVertAdd(eve.cry[hit], eve.eneMean[hit]);
       MIP.SelectionAdd(hit, eve.cry[hit], eve.eneMean[hit], eve.timMean[hit], eve.timCorrMean[hit]);
@@ -311,7 +316,7 @@ void ANA_CLASS_NAME::LoopEntries(Long64_t entry) {
    if( cosmicType  == "no" && CONF->step == 0 ) { return; } 
 
    double eneLayer[GEO.rowNo]{0};
-   for (int hit = 0; hit < hitNo; hit++) {  // fill layers
+   for (int hit = 0; hit < hitNo; hit++) {  // Fill histos layer
       for (int ilayer = 0; ilayer < GEO.rowNo; ilayer++) {
          if (eve.row[hit] == ilayer) { eneLayer[ilayer] += eve.eneMean[hit]; }
       }
@@ -320,7 +325,7 @@ void ANA_CLASS_NAME::LoopEntries(Long64_t entry) {
       HM.Fill1d("eneSelLayer", ilayer, eneLayer[ilayer]); 
    }  
 
-   for (int hit = 0; hit < hitNo; hit++) { // fill selection
+   for (int hit = 0; hit < hitNo; hit++) { // Fill histos selection
       int cha = eve.chan[hit], cry = eve.cry[hit];
       double ene =  eve.eneMean[hit], tim = eve.timMean[hit];
 
@@ -357,13 +362,40 @@ void ANA_CLASS_NAME::LoopEntries(Long64_t entry) {
    if( !MIP.SelectionCutCosThetaFit() ) {return;}
    if (!MIP.FitChi2Cut()) {return;}
 
-   for (int hit = 0; hit < hitNo; hit++) { // fill cut
+   if (CONF->options.Contains("useSlopeZ->on")) {
+      int res = MIP.ComputeSlopeYZ();
+      if (res == 0) {return;}
+
+      HM.Fill1d("zetaChi2", 0, MIP.zeta.fitChi2);
+      
+      double toss = gRandom->Uniform(0, 100);
+      if (toss > 1) {      
+         TGraphErrors *gra = MIP.zeta.zetaGraph;
+         gra->SetMinimum(-3);
+         gra->SetMaximum(3);
+         gra->GetXaxis()->SetRangeUser(-1, GEO.rowNo);
+         gra->SetTitle(Form("%d", gra->GetN()));
+         gra->SetMarkerStyle(20);
+         CONF->outDirs.zetaGraph->cd();
+         //zetaGr.Write(Form("zetaGr_%lld", entry));
+         TCanvas cc(Form("c_zetaGr_%lld.root", entry));
+         cc.cd();
+         gra->Draw("APS");
+         MIP.zeta.zetaFit->Draw("same");
+         cc.Write(Form("c_zetaGr_%lld", entry));
+      }
+
+      HM.Fill1d("cosThetaYZsign", 0,  MIP.zeta.thetaSign*(MIP.zeta.cosThetaYZ-1));
+      HM.Fill1d("cosThetaYZ", 0, MIP.zeta.cosThetaYZ);
+   }
+
+   for (int hit = 0; hit < hitNo; hit++) { // Fill histos cuts
       if (eve.side[hit] == 2) {
          HM.Fill1d("timeDiffCut", eve.cry[hit], eve.timCorr[1][hit] - eve.timCorr[0][hit]);
       }
    } 
 
-   for (int i = 0; i < selNo; i++) { // fill ene cell
+   for (int i = 0; i < selNo; i++) {
       HM.Fill1d("eneCellCut", 0, MIP.sel.E[i]);
       HM.Fill1d("eneCry", MIP.sel.cry[i], MIP.sel.E[i]);
    }
@@ -373,7 +405,7 @@ void ANA_CLASS_NAME::LoopEntries(Long64_t entry) {
 
    HM.Fill1d("eneAvgCut", 0, MIP.sel.etot / selNo);
 
-   for (int iSel = 0; iSel < selNo; iSel++) { // fill resid
+   for (int iSel = 0; iSel < selNo; iSel++) { // Fill time residuals
       
       int cry = MIP.sel.cry[iSel], row = MIP.sel.row[iSel], col = MIP.sel.col[iSel];
       double ene = MIP.sel.E[iSel];
@@ -385,8 +417,8 @@ void ANA_CLASS_NAME::LoopEntries(Long64_t entry) {
 
          int cha = GEO.chaCry(cry, sid);
 
-         double resid = eve.timCorr[sid][hit] + MIP.sel.y[iSel] / ( PRM.lightSpeed * costheta ) - toff;
-
+         double resid = eve.timCorr[sid][hit] + MIP.sel.y[iSel] / ( PRM.lightSpeed * costheta ) - toff; 
+         resid = CONF->options.Contains("useSlopeZ->on") ? resid : resid; //////////
          HM.Fill1d("resid", cha, resid);
          HM.Fill2d("resid:ene", cha, eve.ene[sid][hit], resid);     
          HM.Fill2d("resid:eneCell", 0, ene, resid);     
@@ -399,9 +431,11 @@ void ANA_CLASS_NAME::LoopEntries(Long64_t entry) {
 
 
 
-   //prova
+
+
+   //Prova
       double t9{-9999}, t25{-9999}, t41{-9999};
-      for (int hit = 0; hit < hitNo; hit++) { 
+      for (int hit = 0; hit < hitNo; hit++) {
          
          t9 = eve.cry[hit] == 9 ? eve.timCorrMean[hit] : t9;
          t25 = eve.cry[hit] == 25 ? eve.timCorrMean[hit] : t25;
@@ -422,7 +456,15 @@ void ANA_CLASS_NAME::LoopEntries(Long64_t entry) {
             HM.Fill1d("timDiffCellTof", 2, t41c-t25c);
          }
       } 
-   //prova
+   //Prova
+
+
+
+
+
+
+
+
 
    
 
