@@ -1,7 +1,7 @@
 #pragma once
 
-using SplineTypeDef = TSpline3;
 
+using SplineTypeDef = TSpline5;
 
 
 
