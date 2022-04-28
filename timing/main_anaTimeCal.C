@@ -10,9 +10,9 @@ using namespace std;
 #include "anaTimeCal.h"
 #include "anaTimeCal.C"
 
-#define _runName "run34"
+#define _runName "run33"
 #define _anaMode ""
-#define _anaOptions "sel(vert) equal(fromTree) useSlopeZ(off) saveCalib(on)" 
+#define _anaOptions "sel(vert) equal(fromTree) useSlopeZ(off) saveCalib(off) useTime(fit)" 
 #define _maxEvents 2e9
 #define _inFileFormat "../data/roottople/%s_new.root"
 #define _inList "../data/runXX.list"
@@ -27,6 +27,8 @@ using namespace std;
 
 void main_anaTimeCal(TString arg1 = "", TString arg2 = "",  TString arg3 = "") {
 
+    gErrorIgnoreLevel = kFatal;
+
     TString mode =  arg1.CompareTo("") == 0 ? _anaMode : arg1;
     TString inFileName = arg2.CompareTo("") == 0 ?_runName : arg2;
     TString options = arg3.CompareTo("") == 0 ? _anaOptions : arg2;
@@ -36,7 +38,6 @@ void main_anaTimeCal(TString arg1 = "", TString arg2 = "",  TString arg3 = "") {
     outFile->cd();
     TCanvas c_residMean("residMean"), c_residRms("residRms"), c_useless("useless");
     Style_t colorArray[8] = {kMagenta, kBlack, kGreen, kBlue, kOrange, kPink+3, kRed, kYellow};  
-    
 
     anaTimeCal::_calib anaCalibs[_iterations];
 
