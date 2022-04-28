@@ -12,30 +12,30 @@ using namespace std;
 
 
 
-//config 
-    #define _runName "run34" 
+//config  
+    #define _runName "33all" 
     #define _analysisMode ""
-    #define _maxEvents 2e9
-    #define _anaOptions "makeNewFile(on) anaMode(fit) optim(off)"
+    #define _maxEvents 1e9
+    #define _anaOptions "makeNewFile(off) anaMode(gen) usePrevTempl(on) optim(off)"
 
-    #define _splineFileName "../data/template/spline/splines_%s.root"
+    #define _splineFileName "../data/template/spline/splinesIter_%s.root"
     #define _splinesFormat "spline/spline_%d"
     #define _splinesName "33all"
 
-    #define _inFormat "../data/roottople/%s.root"
-    #define _outAnaName "../data/template/ana/%s_fit.root"
+    #define _inFormat "../data/roottople/anarun%s_new.root"
+    #define _outName "../data/template/ana/%s_an.root"
     #define _analysisInTreeName "mod0"
-//config
+//config  
 
 
 
-void goFit() {
+void goGenIter() {
 
     AN.mode = _analysisMode;
     AN.runName = _runName;
     AN.inFileName = Form(_inFormat, _runName);
-    AN.outFileName = Form(_outAnaName, _runName);
-    AN.splineFileName = Form(_splineFileName, _runName);
+    AN.outFileName = Form(_splineFileName, _runName);
+    AN.splineFileName = "";
     AN.anaOptions = _anaOptions;
     AN.splinesNameFormat = _splinesFormat;
     
@@ -44,7 +44,7 @@ void goFit() {
     cout<<"-----> outFile: "<<AN.outFileName<<endl;
     cout<<"-----> splineFile: "<< AN.splineFileName<<endl;
     cout<<"-----> mode: "<<AN.mode<<endl;
-    cout<<"-----> options: "<<AN.anaOptions<<endl;
+    cout<<"-----> options :"<<AN.anaOptions<<endl;
 
     AN.inFile = new TFile(AN.inFileName);  
     AN.inFile->GetObject(_analysisInTreeName, AN.chain);
@@ -52,7 +52,7 @@ void goFit() {
 
     cout<<"-----> Chain entries: "<<AN.chain->GetEntriesFast()<<endl;
     AN.etp = min((Long64_t)_maxEvents, (Long64_t)AN.chain->GetEntriesFast());
-    cout << "-----> Events to process: "<<AN.etp<<endl<<endl;
+    cout<<"-----> Events to process: "<<AN.etp<<endl<<endl;
 
     ana *ANALYSIS = new ana(AN.chain);
     ANALYSIS->Loop();

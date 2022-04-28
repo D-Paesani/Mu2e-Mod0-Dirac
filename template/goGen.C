@@ -13,7 +13,7 @@ using namespace std;
 
 
 //config  
-    #define _runName "33all" 
+    #define _runName "run34" 
     #define _analysisMode ""
     #define _maxEvents 1e9
     #define _anaOptions "makeNewFile(off) anaMode(gen) optim(off)"
@@ -22,7 +22,7 @@ using namespace std;
     #define _splinesFormat "spline/spline_%d"
     #define _splinesName "33all"
 
-    #define _inFormat "../data/roottople/anarun%s.root"
+    #define _inFormat "../data/roottople/%s.root"
     #define _outName "../data/template/ana/%s_an.root"
     #define _analysisInTreeName "mod0"
 //config  

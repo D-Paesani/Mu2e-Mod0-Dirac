@@ -21,19 +21,19 @@ using namespace std;
     #define _splinesName "33all"
 
     #define _inFormat "../data/roottople/anarun%s.root"
-    #define _outAnaName "../data/template/optim/optFitGenCf_%s_step%d.root"
+    #define _outAnaName "../data/template/optim/optGenCf_%s_step%d.root"
     #define _analysisInTreeName "mod0"
 
-    #define _optimSteps 6
-    #define _rangeStart 0.05
-    #define _rangeStep 2
+    #define _optimSteps 10
+    #define _rangeStart 0.04
+    #define _rangeStep 0.02
 //config  
 
-TGraphErrors optimGraph;
 
 
+void goOptimGenCf() {
 
-void goOptimFitGenCf() {
+    gErrorIgnoreLevel = kFatal; //kPrint, kInfo, kWarning, kError, kBreak, kSysError, kFatal
 
     AN.runName = _runName;
     AN.inFileName = Form(_inFormat, _runName);
@@ -42,7 +42,7 @@ void goOptimFitGenCf() {
     for (int i = 0; i < _optimSteps; i++) {
 
         //gen
-            AN.anaOptions = "makeNewFile(off) anaMode(gen) optim(on)";
+            AN.anaOptions = "makeNewFile(off) anaMode(gen) optim(off)";
             TString currentSpline = Form( _splineFileName, i);
             AN.outFileName = currentSpline;
             
@@ -62,6 +62,7 @@ void goOptimFitGenCf() {
             AN.etp = min((Long64_t)_maxEvents, (Long64_t)AN.chain->GetEntriesFast());
             cout << "-----> Events to process: "<<AN.etp<<endl<<endl;
 
+            AN.optimVar = &AN.CF;
             AN.CF = _rangeStart + i * _rangeStep;
 
             ana *ANALYSIS = new ana(AN.chain);
@@ -72,7 +73,8 @@ void goOptimFitGenCf() {
         //gen
 
         //fit
-            AN.anaOptions = "makeNewFile(off) anaMode(fit) optim(on)";
+            AN.anaOptions = "makeNewFile(off) anaMode(fit) optim(fit)";
+            if (i == _optimSteps - 1) { AN.anaOptions += " isLastIteration"; }
             AN.outFileName = Form( _outAnaName, _runName, i);
             AN.splineFileName = currentSpline;
             AN.outFileName = Form( _outAnaName, _runName, i);
@@ -96,33 +98,13 @@ void goOptimFitGenCf() {
             ANALYSIS = new ana(AN.chain);
             ANALYSIS->Loop();
 
-            optimGraph.AddPoint(AN.CF, AN.res.optimReso);
-            optimGraph.SetPointError(optimGraph.GetN() - 1, 0, AN.res.optimResoErr);
-
             AN.inFile->Close(); 
             if (i < _optimSteps - 1) { AN.outFile->Close(); }
         //fit
     }
 
-    //AN.outDirs.optimisation()->cd();
-    AN.outFile->cd();
-
-    optimGraph.Write("CFoptim");
-
-    TCanvas cc;
-    cc.cd();
-    optimGraph.Draw("AP");
-
     AN.outFile->Close();
-
     cout<<endl<<endl;
     cout<<endl<<endl<<" ---->>> open output file here:"<<endl<<"      root "<<AN.outFileName<<endl<<endl;
     
 }
-
-
-
-
-
-
-

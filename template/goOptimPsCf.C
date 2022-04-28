@@ -26,16 +26,16 @@ using namespace std;
     #define _outAnaName "../data/template/optim/optPsCf_%s_step%d.root"
     #define _analysisInTreeName "mod0"
 
-    #define _optimSteps 1
+    #define _optimSteps 24
     #define _CFstart 0.02
     #define _CFstep 0.01
 //config  
 
-TGraphErrors optimCF;
-
 
 
 void goOptimPsCf() {
+
+    gErrorIgnoreLevel = kFatal;
 
     AN.mode = _analysisMode;
     AN.runName = _runName;
@@ -45,6 +45,8 @@ void goOptimPsCf() {
     AN.splinesNameFormat = _splinesFormat;
 
     for (int i = 0; i < _optimSteps; i++) {
+        
+        if (i == _optimSteps - 1) { AN.anaOptions += " isLastIteration"; }
   
         AN.outFileName = Form( _outAnaName, _runName, i);
         
@@ -64,31 +66,17 @@ void goOptimPsCf() {
         AN.etp = min((Long64_t)_maxEvents, (Long64_t)AN.chain->GetEntriesFast());
         cout << "-----> Events to process: "<<AN.etp<<endl<<endl;
 
+        AN.optimVar = &AN.CF;
         AN.CF = _CFstart + i * _CFstep;
 
         ana *ANALYSIS = new ana(AN.chain);
         ANALYSIS->Loop();
 
-        optimCF.AddPoint(AN.CF, AN.res.optimReso);
-        optimCF.SetPointError(optimCF.GetN() - 1, 0, AN.res.optimResoErr);
-
         AN.inFile->Close();
-
         if (i < _optimSteps - 1) { AN.outFile->Close(); }
-
     }
 
-    //AN.outDirs.optimisation()->cd();
-    AN.outFile->cd();
-
-    optimCF.Write("CFoptim");
-
-    TCanvas cc;
-    cc.cd();
-    optimCF.Draw("AP");
-
     AN.outFile->Close();
-
     cout<<endl<<endl;
     cout<<endl<<endl<<" ---->>> open output file here:"<<endl<<"      root "<<AN.outFileName<<endl<<endl;
     

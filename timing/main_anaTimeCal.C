@@ -10,11 +10,11 @@ using namespace std;
 #include "anaTimeCal.h"
 #include "anaTimeCal.C"
 
-#define _runName "33all" 
+#define _runName "run34"
 #define _anaMode ""
-#define _anaOptions "sel->vert equal->fromFile useSlopeZ->off" 
-#define _maxEvents 20000000
-#define _inFileFormat "../data/roottople/anarun%s_new.root"
+#define _anaOptions "sel(vert) equal(fromTree) useSlopeZ(off) saveCalib(on)" 
+#define _maxEvents 2e9
+#define _inFileFormat "../data/roottople/%s_new.root"
 #define _inList "../data/runXX.list"
 #define _inTreeName "mod0"
 #define _outAnaFormat "../data/timing/anaTimeCal/timcal_%s_%s.root"
@@ -47,7 +47,7 @@ void main_anaTimeCal(TString arg1 = "", TString arg2 = "",  TString arg3 = "") {
         anaTimeCal::_config anaConfig;
 
         anaConfig.mode = mode;
-        anaConfig.options = options + (currentStep + 1 == _iterations ? " isLastStep" : "");
+        anaConfig.options = options + (currentStep + 1 == _iterations ? " isLastIteration" : "");
         anaConfig.step = currentStep;
         anaConfig.evLimit = _maxEvents;
         anaConfig.runName = inFileName;
@@ -98,6 +98,8 @@ void main_anaTimeCal(TString arg1 = "", TString arg2 = "",  TString arg3 = "") {
 
         if (currentStep > 0) {
             int color = colorArray[_iterations - currentStep - 1];
+            currentAna.RES.residMean->MovePoints(0.02*(double)currentStep, 0);
+            currentAna.RES.residRms->MovePoints(0.02*(double)currentStep, 0);
             currentAna.RES.residMean->SetLineColor(color);
             currentAna.RES.residMean->SetMarkerColor(color);
             currentAna.RES.residRms->SetLineColor(color);
@@ -121,21 +123,6 @@ void main_anaTimeCal(TString arg1 = "", TString arg2 = "",  TString arg3 = "") {
     c_residMean.Write();
     c_residRms.Write();
     residHisto.Write();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   
 }
 

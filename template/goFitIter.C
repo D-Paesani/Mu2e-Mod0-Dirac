@@ -13,23 +13,23 @@ using namespace std;
 
 
 //config 
-    #define _runName "run34" 
+    #define _runName "33all" 
     #define _analysisMode ""
-    #define _maxEvents 2e9
-    #define _anaOptions "makeNewFile(on) anaMode(fit) optim(off)"
+    #define _maxEvents 1e8
+    #define _anaOptions "makeNewFile(off) anaMode(fit) optim(off)"
 
-    #define _splineFileName "../data/template/spline/splines_%s.root"
+    #define _splineFileName "../data/template/spline/splinesIter_%s.root"
     #define _splinesFormat "spline/spline_%d"
     #define _splinesName "33all"
 
-    #define _inFormat "../data/roottople/%s.root"
-    #define _outAnaName "../data/template/ana/%s_fit.root"
+    #define _inFormat "../data/roottople/anarun%s.root"
+    #define _outAnaName "../data/template/ana/%s_fitIter.root"
     #define _analysisInTreeName "mod0"
 //config
 
 
 
-void goFit() {
+void goFitIter() {
 
     AN.mode = _analysisMode;
     AN.runName = _runName;
