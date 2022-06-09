@@ -36,10 +36,17 @@
 #include "ana.h"
 #include "vars.h"
 #include "TGraphHelper.h"
+#include "Mod0FitHelper.h"
 
 using namespace std;
 
-void skipNotAlive(TH1* histObj, int histN, int& histSkipFlag) { if (AN.res.isAlive[histN] == 0) {histSkipFlag=1;} };
+void skipNotAlive(TH1* histObj, int histN, int& histSkipFlag) { 
+   if (AN.res.isAlive[histN] == 0 || histObj->GetEntries() < 10) {histSkipFlag=1;} 
+}
+
+void skipEmpty(TH1* histObj, int histN, int& histSkipFlag) { 
+   if (histObj->GetEntries() < 10) {histSkipFlag=1;} 
+}
 
 void fuzzyTemp_proc(TH1* histObj, int histN, int& histSkipFlag) { 
 
@@ -98,18 +105,8 @@ void times_proc(TH1* histObj, int histN, int& histSkipFlag) {
    if (AN.res.isAlive[histN] == 0) {histSkipFlag=1; return;} 
    gStyle->SetOptFit(1111);
 
-   double tpeak = histObj->GetBinCenter(histObj->GetMaximumBin());
-   double tsigma = 5;
-   double tmax = tpeak + 5, tmin = tpeak - 5;
-   TF1 timeFit = TF1("gen", "gaus", tmin, tmax);
-   timeFit.SetParameter(1, tpeak); timeFit.SetParameter(2, tsigma);
-   histObj->Fit(&timeFit, "REMQ");
-   tpeak = timeFit.GetParameter(1); tsigma = timeFit.GetParameter(2);
-   timeFit.SetParameter(1, tpeak); timeFit.SetParameter(2, tsigma);
-   timeFit.SetRange(tpeak - 4*tsigma, tpeak + 4*tsigma);
-   histObj->Fit(&timeFit, "REMQ");
-   tpeak = timeFit.GetParameter(1); tsigma = timeFit.GetParameter(2);
-   double sigmaErr = timeFit.GetParError(2);
+   double peak, sigma, peakErr, sigmaErr;
+   fitTimeGausStandard(histObj, peak, peakErr, sigma, sigmaErr, "none");
 }
 
 void times_proc_cry(TH1* histObj, int histN, int& histSkipFlag) {
@@ -118,31 +115,14 @@ void times_proc_cry(TH1* histObj, int histN, int& histSkipFlag) {
    if (histObj->GetEntries() < 5) {histSkipFlag=1; return;} 
    gStyle->SetOptFit(1111);
 
-   double tpeak = histObj->GetBinCenter(histObj->GetMaximumBin());
-   double tsigma = 5;
-   double tmax = tpeak + 5, tmin = tpeak - 5;
-   TF1 timeFit = TF1("gen", "gaus", tmin, tmax);
-   timeFit.SetParameter(1, tpeak); timeFit.SetParameter(2, tsigma);
-   histObj->Fit(&timeFit, "REMQ");
-   tpeak = timeFit.GetParameter(1); tsigma = timeFit.GetParameter(2);
-   timeFit.SetParameter(1, tpeak); timeFit.SetParameter(2, tsigma);
-   timeFit.SetRange(tpeak - 4*tsigma, tpeak + 4*tsigma);
-   histObj->Fit(&timeFit, "REMQ");
-   tpeak = timeFit.GetParameter(1); tsigma = timeFit.GetParameter(2);
-   double sigmaErr = timeFit.GetParError(2);
-
-   // int cond1 = AN.anaOptions.Contains("optim(ps)") && histName.Contains("psDualReadout");
-   // int cond2 = AN.anaOptions.Contains("optim(fit)") && histName.Contains("teDualReadout");
-   // int cond3 = AN.anaOptions.Contains("optim(cf)") && histName.Contains("cfDualReadout");
-   // if ( cond1 || cond2 || cond3 ) {
-   //    fillGraph( &AN.optimGraphs[histN], *AN.optimVar, tsigma, 0, sigmaErr );
-   // }
+   double peak, sigma, peakErr, sigmaErr;
+   fitTimeGausStandard(histObj, peak, peakErr, sigma, sigmaErr, "none");
 
    if( AN.anaOptions.Contains("optim(") && !AN.anaOptions.Contains("optim(off)") ) {
 
       TGraphErrors *gra = histName.Contains("cfDualReadout") ? &AN.optimGraphs_cf[histN] : &AN.optimGraphs_ps[histN];
       gra = histName.Contains("teDualReadout") ? &AN.optimGraphs_te[histN] : gra;
-      fillGraph( gra, *AN.optimVar, tsigma, 0, sigmaErr );
+      fillGraph( gra, *AN.optimVar, sigma, 0, sigmaErr );
    }
 
 }
@@ -156,6 +136,30 @@ void residuals_proc(TH1* histObj, int histN, int& histSkipFlag) {
    prof->SetName( name + "_prof");
    prof->Write();
    //histSkipFlag = 1;
+}
+
+void cdf_proc(TH1* histObj, int histN, int& histSkipFlag) {
+   TString name = histObj->GetName();
+   if (AN.res.isAlive[histN] == 0) {histSkipFlag=1; return;} 
+   gStyle->SetOptFit(1111);
+
+   TH1* hc = histObj->GetCumulative();
+   Double_t* integral = histObj->GetIntegral();
+   for (Int_t i = 1; i <= hc->GetNbinsX(); ++i) {
+      assert(std::abs(integral[i] * histObj->GetEntries() - hc->GetBinContent(i)) < 1e-7);
+   }
+   hc->SetTitle("Pseudotime cdf");
+   TCanvas* c = new TCanvas;
+   c->Divide(1,2);
+   c->cd(1);
+   histObj->Rebin(2);
+   histObj->Draw();
+   c->cd(2);
+   hc->Draw();
+   c->Update();
+   c->Write(name + "_cdf");
+
+   histSkipFlag = 1;
 }
 
 void ana::Loop() {
@@ -203,13 +207,17 @@ void ana::Loop() {
       AN.HM->AddHistBox("th1f", PRM.chNo, "timesPk", "Peak times", "Time", "ns",  PRM.tiBins, PRM.tiFrom, PRM.tiTo, &times_proc); 
       AN.HM->AddHistBox("th2f", PRM.chNo, "pseudoSlewing", "Pseudo time slewing", "E", "MeV", "T", "ns", eneBins, eneFrom, eneTo, PRM.tiBins, PRM.tiFrom, PRM.tiTo);
       AN.HM->AddHistBox("th2f", PRM.chNo, "teSlewing", "Template time slewing", "E", "MeV", "T", "ns", eneBins, eneFrom, eneTo, PRM.tiBins, PRM.tiFrom, PRM.tiTo); 
-      AN.HM->AddHistBox("th1f", PRM.chNo, "timePseudoModBin", "Flatness over bin", "Normalised bin", "",  11, 0, 1.1);
+      AN.HM->AddHistBox("th1f", PRM.chNo, "timePseudoModBin", "recotime mod digitime", "Normalised recoTime % digiTime", "",  12, -0.1, 1.1);
+      AN.HM->AddHistBox("th1f", PRM.chNo, "timePseudoModBinCdf", "recotime mod digitime", "Normalised recoTime % digiTime", "",  300, -0.1, 1.1, &cdf_proc);
       AN.HM->AddHistBox("th1f", PRM.chNo, "old", "old", "Time", "ns",  PRM.tiBins, PRM.tiFrom, PRM.tiTo, &times_proc); 
+      AN.HM->AddHistBox("th2f", PRM.chNo, "resolPs:bLineRms", "resol:bLineRms", "rms", "mV", "deltat", "ns", 100, 0.0, 5, 1000, -20, 20, &skipEmpty, &NamerArray);
       if (AN.anaOptions.Contains("anaMode(fit)") || AN.anaOptions.Contains("anaMode(ps)")) {
+         AN.HM->AddHistBox("th2f", PRM.chNo, "resolTe:bLineRms", "resol:bLineRms", "rms", "mV", "deltat", "ns", 100, 0.0, 5, 1000, -20, 20, &skipEmpty, &NamerArray);
          AN.HM->AddHistBox("th1f", PRM.chNo, "timesTe", "Template times", "Time", "ns",  PRM.tiBins, PRM.tiFrom, PRM.tiTo, &times_proc); 
          AN.HM->AddHistBox("th2f", PRM.chNo, "timesTe_timesPs", "templ vs ps", "Time", "ns", "Time", "ns", PRM.tiBins, PRM.tiFrom, PRM.tiTo, PRM.tiBins, PRM.tiFrom, PRM.tiTo);
+         AN.HM->AddHistBox("th2f", PRM.chNo, "timeDiffTePs_ene", "templ vs ps", "E", "MeV", "T", "ns", eneBins, eneFrom, eneTo, 1000, -20, 20);
          AN.HM->AddHistBox("th2f", PRM.chNo, "newold", "newold", "Time", "ns", "Time", "ns", PRM.tiBins, PRM.tiFrom, PRM.tiTo, PRM.tiBins, PRM.tiFrom, PRM.tiTo);
-         AN.HM->AddHistBox("th1f", PRM.chNo, "timeTeModBin", "Flatness over bin", "Normalised bin", "",  11, 0, 1.1);
+         AN.HM->AddHistBox("th1f", PRM.chNo, "timeTeModBin", "recotime mod digitime", "Normalised bin", "",  11, 0, 1.1);
          AN.HM->AddHistBox("th1f", PRM.chNo, "teChi2","Chi2", "#chi^{2}/NDOF","", 200, 0, 15);
          AN.HM->AddHistBox("th2f", PRM.chNo, "teChi2_t", "Chi2 vs time", "T", "ns", "#chi^{2}/NDOF", "", PRM.tiBins, PRM.tiFrom, PRM.tiTo, 100, 0, 5); 
          AN.HM->AddHistBox("th2f", PRM.chNo, "teChi2_q", "Chi2 vs charge", "E", "MeV", "#chi^{2}/NDOF", "", eneBins, eneFrom, eneTo, 100, 0, 5); 
@@ -221,8 +229,8 @@ void ana::Loop() {
          AN.HM->AddHistBox("th1f", PRM.cryNo, "teDualReadout", "teT", "T", "ns", 800, -10, 10, &times_proc_cry, &NamerArray);
          AN.HM->AddHistBox("th1f", PRM.cryNo, "psDualReadout", "teT", "T", "ns", 800, -10, 10, &times_proc_cry, &NamerArray);
          AN.HM->AddHistBox("th1f", PRM.cryNo, "cfDualReadout", "teT", "T", "ns", 800, -10, 10, &times_proc_cry, &NamerArray);
-         AN.HM->AddHistBox("th2f", PRM.cryNo, "psDualReadout:charge", "teT", "E", "MeV", "T", "ns", eneBins, eneFrom, eneTo, 800, -10, 10, AN.HM->GetProcDef(), &NamerArray);
-         AN.HM->AddHistBox("th2f", PRM.cryNo, "teDualReadout:charge", "teT", "E", "MeV", "T", "ns", eneBins, eneFrom, eneTo, 800, -10, 10, AN.HM->GetProcDef(), &NamerArray);
+         AN.HM->AddHistBox("th2f", PRM.cryNo, "psDualReadout:charge", "teT", "E", "MeV", "T", "ns", eneBins, eneFrom, eneTo, 800, -10, 10, &skipEmpty, &NamerArray);
+         AN.HM->AddHistBox("th2f", PRM.cryNo, "teDualReadout:charge", "teT", "E", "MeV", "T", "ns", eneBins, eneFrom, eneTo, 800, -10, 10, &skipEmpty, &NamerArray);
          AN.HM->AddHistBox("th2f", PRM.chNo, "p0:charge", "p0_smearing", "E", "MeV", "p0", "mV", eneBins, eneFrom, eneTo, 1000, 0, 2000);
          AN.HM->AddHistBox("th2f", PRM.chNo, "p0:pkV", "p0_smearing", "Vpk", "mV", "p0", "mV", 1000, 0, 2000, 1000, 0, 2000);
          AN.HM->AddHistBox("th2f", PRM.chNo, "p0residuals:pkV", "", "Vpk", "mV", "resid", "", 1000, 0, 2000, 1000, -1, 1);
@@ -240,21 +248,12 @@ void ana::Loop() {
             TH1 *hist = (TH1*)AN.HM->GetHist("chargePreliminary", cha);
             branch2histo1d(hist, AN.chain, "Qval", Form("iCry == %d && SiPM == %d", i, ii)); 
             if (hist->GetEntries() < 10) { continue; }
-            double peak = hist->GetBinCenter(hist->GetMaximumBin());
-            double qfrom = 2000, qto = 12000;
-            double sigma = 500;
-            TF1 land = TF1("land", "landau", 3000, 10000);
-            land.SetParameters(hist->Integral()/2, peak, sigma);
-            hist->Fit(&land, "REMQ");
-            land.SetParameters(land.GetParameter(0), peak, sigma);
-            land.SetRange(peak - 1.5*sigma, peak + 4.5*sigma);
-            hist->Fit(&land, "REMQ"); 
-            hist->Fit(&land, "REMQ"); 
-            peak = land.GetParameter(1); 
-            sigma = land.GetParameter(2);
+            double peak, sigma, peakErr, sigmaErr;
+            fitChargeRawLandau(hist, peak, peakErr, sigma, sigmaErr, "none");
             AN.res.landauPks[i][ii] = peak;
          }
       }
+      cout<<endl<<endl;
    //chargeEqual
       
    //newTree
@@ -295,6 +294,7 @@ void ana::Loop() {
       double teDualReadoutDiff[2][PRM.cryNo]{0};
       double cfDualReadoutDiff[2][PRM.cryNo]{0};
       double chargDualReadout[2][PRM.cryNo]{0};
+      double brmsDualReadout[2][PRM.cryNo]{0};
 
       double IntQ[PRM.chNo]{0},  PkV[PRM.chNo]{0},  PkT[PRM.chNo]{0},  TeT[PRM.chNo]{0}, PsT[PRM.chNo]{0};
 
@@ -354,6 +354,7 @@ void ana::Loop() {
          AN.HM->Fill1d("chargeRaw", ich, intQ);
          AN.HM->Fill1d("eneRaw", ich, ene);
          AN.HM->Fill1d("timePseudoModBin", ich, psT/PRM.digiTime - (int)psT/PRM.digiTime);
+         AN.HM->Fill1d("timePseudoModBinCdf", ich, psT/PRM.digiTime - (int)psT/PRM.digiTime);
          AN.HM->Fill1d("timesPk", ich, pkT - PRM.tiOff);
          AN.HM->Fill1d("timesPseudo", ich, psT - PRM.tiOff);
          AN.HM->Fill2d("pseudoSlewing", ich, ene, psT - PRM.tiOff);
@@ -411,6 +412,7 @@ void ana::Loop() {
                AN.HM->Fill2d("teChi2_q", ich, ene, p_teChi2_out[ihit]);
                AN.HM->Fill1d("teChi2", ich, p_teChi2_out[ihit]);
                AN.HM->Fill2d("timesTe_timesPs", ich, psT - PRM.tiOff, teT - PRM.tiOff);
+               AN.HM->Fill2d("timeDiffTePs_ene", ich, ene, teT - PRM.tiOff - psT + PRM.tiOff);
                AN.HM->Fill2d("newold", ich, templTime[ihit] - PRM.tiOff, teT - PRM.tiOff);
                AN.res.teGoodFits[ich]++;
                for (int i = 0; i < nsam; i++) {
@@ -430,7 +432,8 @@ void ana::Loop() {
 
             //if(brmsTmp == 0) { 
             //if ( (teT-psT)*(teT-psT) > 5  ) {
-            if ( toss < 1 ) {
+            if ( psT ) {
+            //if ( toss < 1 ) {
                AN.outDirs.specimens->cd();
                TCanvas cc("fit_" + ctitl); cc.cd(); 
                gStyle->SetOptFit(1111);
@@ -449,6 +452,7 @@ void ana::Loop() {
          psDualReadoutDiff[isd][icry] = psT;
          teDualReadoutDiff[isd][icry] = p_teTfi_out[ihit];
          cfDualReadoutDiff[isd][icry] = p_teTcf_out[ihit];
+         brmsDualReadout[isd][icry] = brmsTmp;
 
       } //LOOP HIT 
 
@@ -467,11 +471,13 @@ void ana::Loop() {
             double cfR = cfDualReadoutDiff[1][i];
             double chL = chargDualReadout[0][i];
             double chR = chargDualReadout[1][i];
+            double bL = brmsDualReadout[0][i];
+            double bR = brmsDualReadout[1][i];
 
-            if ( chL > 30 ) {continue;}
-            if ( chR > 30 ) {continue;}
-            if ( chL < 15 ) {continue;}
-            if ( chR < 15 ) {continue;}
+            // if ( chL > 30 ) {continue;}
+            // if ( chR > 30 ) {continue;}
+            // if ( chL < 15 ) {continue;}
+            // if ( chR < 15 ) {continue;}
 
             AN.HM->Fill1d("chargDualReadout", i, chL*0.5 + 0.5*chR);
             
@@ -479,12 +485,14 @@ void ana::Loop() {
 
             AN.HM->Fill1d("psDualReadout", i, psR - psL);
             AN.HM->Fill2d("psDualReadout:charge", i, chL*0.5 + 0.5*chR, psR - psL);
+            AN.HM->Fill2d("resolPs:bLineRms", i,  bL*0.5 + 0.5*bR, psR - psL);
 
-            if ( teL < -1000 || teR < -1000 ) {continue;}
+            if ( teL == 0 || teR == 0 ) {continue;}
    
             AN.HM->Fill1d("teDualReadout", i, teR - teL);
             AN.HM->Fill1d("cfDualReadout", i, cfR - cfL);
             AN.HM->Fill2d("teDualReadout:charge", i, chL*0.5 + 0.5*chR, teR - teL);
+            AN.HM->Fill2d("resolTe:bLineRms", i, bL*0.5 + 0.5*bR, teR - teL);
 
          }
       //addOn

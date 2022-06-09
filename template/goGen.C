@@ -13,14 +13,14 @@ using namespace std;
 
 
 //config  
-    #define _runName "run34" 
+    #define _runName "run176" 
     #define _analysisMode ""
     #define _maxEvents 1e9
     #define _anaOptions "makeNewFile(off) anaMode(gen) optim(off)"
 
     #define _splineFileName "../data/template/spline/splines_%s.root"
     #define _splinesFormat "spline/spline_%d"
-    #define _splinesName "33all"
+    #define _splinesName ""
 
     #define _inFormat "../data/roottople/%s.root"
     #define _outName "../data/template/ana/%s_an.root"
