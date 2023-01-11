@@ -153,9 +153,9 @@ void cdf_proc(TH1* histObj, int histN, int& histSkipFlag) {
    c->Divide(1,2);
    c->cd(1);
    histObj->Rebin(2);
-   histObj->Draw();
+   histObj->Draw("E");
    c->cd(2);
-   hc->Draw();
+   hc->Draw("E");
    c->Update();
    c->Write(name + "_cdf");
 
@@ -260,7 +260,7 @@ void ana::Loop() {
       TTree *_newTree;
       TFile *_newFile;
       const int _nhits = 20;  
-      Double_t p_tePar_out[_nhits][3], p_teParErr_out[_nhits][3], p_teChi2_out[_nhits], p_teTcf_out[_nhits], p_teTfi_out[_nhits], p_psT_out[_nhits];
+      Double_t p_tePar_out[_nhits][3], p_teParErr_out[_nhits][3], p_teChi2_out[_nhits], p_teTcf_out[_nhits], p_teTfi_out[_nhits], p_psT_out[_nhits], p_blRms_out[_nhits];;
       if ( AN.anaOptions.Contains("anaMode(fit)") && AN.anaOptions.Contains("makeNewFile(on)") ) { 
          TString name = AN.inFileName.ReplaceAll(".root", "_new.root");
          cout<<endl<<"making new file -->    "<<name<<endl<<endl;
@@ -273,6 +273,7 @@ void ana::Loop() {
          _newTree->Branch("p_teTcf", &p_teTcf_out, "p_teTcf_out[nHits]/D");
          _newTree->Branch("p_teTfi", &p_teTfi_out,"p_teTfi_out[nHits]/D");
          _newTree->Branch("p_psT", &p_psT_out,"p_psT_out[nHits]/D");
+         _newTree->Branch("p_blRms", &p_blRms_out,"p_blRms_out[nHits]/D");
       }
    //newTree
 
@@ -302,7 +303,7 @@ void ana::Loop() {
          
          int icry = iCry[ihit], irow = iRow[ihit], icol = iCol[ihit], isd = SiPM[ihit], ich = cry2chan(icry, isd);
 
-         if ( (0 || AN.mode.Contains("optim(fit)")) && icry != 25 && icry != 41 && icry != 9) {continue;} //scorciatoia
+         if ( (0 || AN.mode.Contains("optim(fit)")) && icry != 25 && icry != 41 && icry != 9) {continue;} //scorciatoia - da rimuovere
 
          IntQ[ich] = Qval[ihit], PkV[ich] = Vmax[ihit], PkT[ich] = Tval[ihit];
          double intQ = Qval[ihit], pkV = Vmax[ihit], pkT = Tval[ihit]; 
@@ -323,6 +324,7 @@ void ana::Loop() {
             AN.HM->Fill1d("bLineAll", 0, v);
          }  
          blTmp = blTmp/baseSam;
+         p_blRms_out[ihit] = blTmp;
          brmsTmp = TMath::Sqrt(TMath::Abs(brmsTmp/baseSam - blTmp*blTmp));
          double ey = TMath::Sqrt(PRM.wfEy*PRM.wfEy + brmsTmp*brmsTmp);
 
@@ -500,7 +502,7 @@ void ana::Loop() {
    } //LOOP EVENT
 
    //writeNewTree
-      if (AN.anaOptions.Contains("anaMode(fit)")  && AN.anaOptions.Contains("makeNewFile(on)")) {
+      if (AN.anaOptions.Contains("anaMode(fit)")  && AN.anaOptions.Contains("makeNewFile(on)")) { //da rifare gestione nuovo tree
          _newFile->cd();
          _newTree->CloneTree()->Write();
          _newFile->Close();
